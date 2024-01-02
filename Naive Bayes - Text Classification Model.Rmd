@@ -1,0 +1,99 @@
+---
+title: "Naive Bayes - Text Classification"
+author: "Aritha Jayaratne s4683873"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(tm)
+library(e1071)
+library(gmodels)
+
+
+```
+```{r}
+Coustomer_review_bank <- read.csv("bank_data - Cleaned Dataset.csv")
+str(Coustomer_review_bank)
+
+```
+
+```{r}
+#Coustomer_review_bank$star <- factor(Coustomer_review_bank$star)#convert the star column variables to a factor.
+Coustomer_review_bank$star <- factor(ifelse(Coustomer_review_bank$star %in% c(1, 5), as.character(Coustomer_review_bank$star), Coustomer_review_bank$star))
+str(Coustomer_review_bank$star)
+table(Coustomer_review_bank$star)
+
+
+```
+```{r}
+#convert the text column into a corpus.
+
+Coustomer_review_Corpus <- VCorpus(VectorSource(Coustomer_review_bank$text))
+print(Coustomer_review_Corpus)
+#as.character(Coustomer_review_Corpus[[3]])
+```
+```{r}
+#clean the created corpus.
+Coustomer_review_Corpus_clean <- tm_map(Coustomer_review_Corpus, content_transformer(tolower))
+Coustomer_review_Corpus_clean <- tm_map(Coustomer_review_Corpus_clean, removeNumbers)
+Coustomer_review_Corpus_clean <- tm_map(Coustomer_review_Corpus_clean, removeWords, stopwords("english"))
+Coustomer_review_Corpus_clean <- tm_map(Coustomer_review_Corpus_clean, removePunctuation)
+Coustomer_review_Corpus_clean <- tm_map(Coustomer_review_Corpus_clean, stripWhitespace)
+
+#as.character(Coustomer_review_Corpus_clean[[3]])
+
+#Tokenize the words using the cleaned Corpus file. 
+BankCoustomerReviews_dtm <- DocumentTermMatrix(Coustomer_review_Corpus_clean)
+
+```
+```{r}
+#split the data set into two as training and testing.
+
+BankCoustomerReviews_dtm_train <- BankCoustomerReviews_dtm[1:14454,] #split to 75% of the data 
+BankCoustomerReviews_dtm_test <- BankCoustomerReviews_dtm[14455:19271,]#split to 25% of the data
+
+```
+```{r}
+#distribute the dependent varriables as well into training and testing.
+
+Bank_train_label <- Coustomer_review_bank[1:14454, ]$star
+Bank_test_label <- Coustomer_review_bank[14455:19271, ]$star
+
+#prop.table(table(Bank_train_label))
+#prop.table(table(Bank_test_label))
+
+#Find the terms that appear % times or more in the independent variable text.
+bank_freq_words <- findFreqTerms(BankCoustomerReviews_dtm_train, 5)
+str(bank_freq_words)
+
+#Include only the frequent words in the training and test data.
+bank_dtm_freq_train <- BankCoustomerReviews_dtm_train[ ,bank_freq_words]
+bank_dtm_freq_test <- BankCoustomerReviews_dtm_test[ ,bank_freq_words]
+
+#check if a word is present in the line and assign yes or no in the matrix.
+
+convert_counts <- function(x) { x <- ifelse(x > 0, "Yes", "No")}
+
+Bank_train <- apply(bank_dtm_freq_train, MARGIN = 2, convert_counts)
+Bank_test <- apply(bank_dtm_freq_test, MARGIN = 2, convert_counts)
+
+#create Model 
+
+Bank_review_Classifier <- naiveBayes(Bank_train, Bank_train_label)
+
+#Test Model
+
+
+Bank_predict <- predict(Bank_review_Classifier, Bank_test) 
+
+CrossTable(Bank_predict, Bank_test_label, prop.chisq = FALSE,prop.t = FALSE, dnn = c('predicted', 'actual'))
+
+```
+

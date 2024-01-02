@@ -1,0 +1,139 @@
+---
+title: "Assessment 3 - Data Preprocessing"
+author: "Aritha Jayaratne s4683873"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("slam")
+
+library(slam)
+library(tm)
+library(tokenizers)
+library(topicmodels)
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+library(textdata)
+library(tidyverse)
+library(syuzhet)
+```
+
+
+
+```{r}
+
+#load the data set into a csv file.
+
+bank_data_preprocessing <- read.csv("bank_data - Cleaned Dataset.csv")
+
+#turn the data in the tweet column into lowercase. 
+bank_data_preprocessing$text <- tolower(bank_data_preprocessing$text)
+
+#remove all punctuation and special characters from the tweet column.
+
+bank_data_preprocessing$text <- gsub("[[:punct:]]", " ", bank_data_preprocessing$text)
+
+#remove numbers which are present in the tweet column. 
+
+bank_data_preprocessing$text <- gsub("\\d+", "", bank_data_preprocessing$text)
+
+#Create a corpus for text analysis. 
+
+Corpus <- Corpus(VectorSource(bank_data_preprocessing$text))
+
+#do the relevant prepossessing needed to the data column text.
+Corpus <- tm_map(Corpus, content_transformer(tolower))
+Corpus <- tm_map(Corpus, removePunctuation)
+Corpus <- tm_map(Corpus, removeNumbers)
+Corpus <- tm_map(Corpus, removeWords, stopwords("english"))
+Corpus <- tm_map(Corpus, stripWhitespace )
+print(Corpus[[1]]["content"])
+#Corpus <- tm_map(Corpus, stemDocument)
+
+#print(Corpus[[1]]["content"])
+
+
+#create  a document term matrix after processing the data.
+
+dtm <- DocumentTermMatrix(Corpus)
+
+# after creating the dtm file and running the lda model a error occurrred saying there " each row of the input matrix needs to contain at least one non-zero entry" after searching the error on stack over flow the below solution was used to over come the error. 
+
+# Define a common word to add to each document
+common_word <- "commonword"
+# Create a dummy document with the common word
+dummy_document <- Corpus(VectorSource(common_word))
+# Add the dummy document to your original corpus
+Corpus <- c(Corpus, dummy_document)
+
+#write.csv(as.matrix(dtm), file = "C:/Users/user/OneDrive/Desktop/AI & Machine learning for Business/Assessment 3/dtm.csv")
+
+dtm <- DocumentTermMatrix(Corpus)
+inspect(dtm)
+
+```
+
+LDA TOPIC MODELING 
+```{r}
+
+dtm <- DocumentTermMatrix(Corpus)
+Model_lda <- LDA(dtm, k = 10, control = list(seed = 1234))
+print(Model_lda)
+terms(Model_lda)
+top_words_10 <- terms(Model_lda, 10) 
+
+
+
+#Model_lda <- LDA(dtm, k = 10)
+#print(Model_lda)
+#terms(Model_lda)
+#top_words_10_topic10 <- terms(Model_lda, 10) 
+
+
+#Model_lda <- LDA(dtm, k = 15)
+#print(Model_lda)
+#terms(Model_lda)
+#top_words_topic15 <- terms(Model_lda, 10) 
+
+beta_topics <- tidy(Model_lda,matrix = "beta")
+beta_topics
+
+beta_top_terms <- beta_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 10) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+beta_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta,term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+
+```
+Sentiment Analysis. 
+
+```{r}
+#create the term matrix. 
+dtm <- DocumentTermMatrix(Corpus)
+bank_SentimentAnalysis <- tidy(dtm)
+
+emotions <- get_nrc_sentiment(bank_SentimentAnalysis$term)
+emo_bar <- colSums(emotions)
+emo_sum <- data.frame(count=emo_bar, emotion=names(emo_bar))
+
+ggplot(emo_sum, aes(x = reorder(emotion, -count), y = count, fill = emotion)) + geom_bar(stat = 'identity')
+
+#ggplot(emo_sum, aes(x = reorder(emotion, -count), y = count)) + geom_bar(stat = 'identity', fill = '#FF6666')
+```
+
+
+
+

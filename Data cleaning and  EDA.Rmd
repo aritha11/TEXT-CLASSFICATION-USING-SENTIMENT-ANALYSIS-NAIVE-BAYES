@@ -1,0 +1,214 @@
+---
+title: "Assessment 3"
+author: "Aritha Jayaratne s4683873"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Read the Data set into R STUDIO and load the libraries. 
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+
+
+bank_data <- read.csv("banks.csv")
+
+```
+
+Data Cleaning. 
+
+```{r}
+#Display the First 10 rows of the data set.
+
+head(bank_data, n = 10)
+
+# Display the information about the data frame. 
+
+str(bank_data)
+
+#Count the missing values in the data frame
+
+missing_counts <- bank_data %>%
+  summarize_all(.funs = list(~ sum(is.na(.))))
+print(missing_counts)
+
+#Remove the missing values in the data frame and replace the NA values in the like column with 0.
+
+bank_data <- bank_data %>%
+  filter(!is.na(author) & !is.na(text))
+
+#Replacing the NA values to 0 in the like column. 
+
+bank_data <- bank_data %>%
+  mutate(like = ifelse(is.na(like), 0, like))
+
+#The data set is now cleaned and read for the analysis. 
+
+missing_counts <- bank_data %>%
+  summarize_all(.funs = list(~ sum(is.na(.))))
+print(missing_counts)
+
+#Please check the data frame to confirm if the changes have taken effect. 
+
+missing_counts <- bank_data %>%
+  summarize_all(.funs = list(~ sum(is.na(.))))
+print(missing_counts)
+
+
+# convert the data column in the data set in to data time format. 
+
+bank_data$date <- as.Date(bank_data$date, format='%d.%m.%Y')
+
+#check the information of the table to see if it has taken effect. 
+
+str(bank_data)
+
+#split the date column into day month and year and add separate columns into the same data set for further analysis purposes. 
+
+bank_data$day <- day(bank_data$date)     
+bank_data$month <- month(bank_data$date) 
+bank_data$year <- year(bank_data$date)   
+
+#check the data frame before doing the analysis. 
+
+head(bank_data, n = 10)
+```
+
+Exploratory Data Analysis. (EDA)
+
+1.Number of reviews by each Bank.
+
+```{r}
+
+# Create the count plot
+plot <- ggplot(bank_data, aes(x = bank)) +
+  geom_bar(fill = "blue") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Number of Reviews by Bank", x = "Bank", y = "Number of Reviews")
+
+# Set the size of the plot
+options(repr.plot.width=16, repr.plot.height=8)
+
+# Display the plot
+print(plot)
+
+```
+2. Distribution of star ratings column in the data set.
+
+```{r}
+# Create the histogram plot
+plot <- ggplot(bank_data, aes(x = star)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  theme_minimal() +
+  labs(title = "Distribution of Star Ratings", x = "Star Rating", y = "Count")
+
+# Set the size of the plot
+options(repr.plot.width = 8, repr.plot.height = 5)
+
+# Display the plot
+print(plot)
+```
+
+3.The Star ratings of each bank by Month and Year.
+
+```{r}
+avg_star_ratings <- bank_data %>%
+  group_by(year, month) %>%
+  summarize(avg_star = mean(star)) %>%
+  ungroup()
+
+# Create the line plot
+plot <- ggplot(avg_star_ratings, aes(x = year, y = avg_star, color = factor(month))) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Star Ratings by Month and Year", x = "Year", y = "Average Star Rating") +
+  scale_color_discrete(name = "Month") +
+  theme(legend.position = "top")
+  scale_x_continuous(breaks = unique(avg_star_ratings$year))
+
+# Set the size of the plot
+options(repr.plot.width = 32, repr.plot.height = 24)
+
+# Display the plot
+print(plot)
+```
+4. The top locations based on the reviews.
+```{r}
+
+# Get the top 10 locations with the most reviews
+top_locations <- head(sort(table(bank_data$location), decreasing = TRUE), 10)
+
+# Create the bar plot
+plot <- ggplot(data = bank_data[bank_data$location %in% names(top_locations), ], aes(x = factor(location))) +
+  geom_bar(fill = "blue") +
+  theme_minimal() +
+  labs(title = "Top Locations for Reviews", x = "Location", y = "Number of Reviews")
+
+# Set the size of the plot
+options(repr.plot.width = 12, repr.plot.height = 6)
+
+# Display the plot using the print() function
+print(plot)
+```
+The flow  of reviews over the years.
+
+```{r}
+# Calculate the number of reviews by year
+reviews_by_year <- table(bank_data$year)
+
+# Create a data frame for the plot
+plot_data <- data.frame(Year = as.numeric(names(reviews_by_year)),
+                        Number_of_Reviews = as.numeric(reviews_by_year))
+
+# Create the plot
+ggplot(data = plot_data, aes(x = Year, y = Number_of_Reviews)) +
+  geom_line(color = "salmon", size = 1) +
+  geom_point(color = "salmon", size = 3, shape = 19) +
+  labs(title = "Number of Reviews Over the Years",
+       x = "Year",
+       y = "Number of Reviews") +
+  theme_dark() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_x_continuous(breaks = seq(min(plot_data$Year), max(plot_data$Year), by = 1)) +
+  scale_y_continuous(breaks = seq(min(plot_data$Number_of_Reviews), max(plot_data$Number_of_Reviews), by = 100)) +
+  expand_limits(y = 0)
+```
+ The top five banks that has the best top 5 star ratings from USA.
+ 
+```{r}
+# Filter the data to select 5-star ratings
+top_5_star_banks <- bank_data %>%
+  filter(star == 5) %>%
+  count(bank) %>%
+  arrange(desc(n)) %>%
+  head(5)
+
+# Filter the data to include only the top 5 banks with 5-star ratings
+df_filtered <- bank_data %>%
+  filter(bank %in% top_5_star_banks$bank)
+
+# Create the plot
+ggplot(data = df_filtered, aes(x = reorder(bank, -star), fill = factor(star))) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Top 5 Banks with 5-Star Ratings",
+       x = "Number of 5-Star Reviews",
+       y = "Bank",
+       fill = "Star Rating") +
+  scale_fill_manual(values = c("5" = "blue")) +
+  theme_light() +
+  theme(legend.title = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "top")
+```
+
